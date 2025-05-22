@@ -488,17 +488,6 @@ class GpipeAsync:
                 'step': self.global_step,
             })
 
-            # save log
-            # log_path = "./log/Our-gs64-ratio2-0.8INT4_0.2INT3"
-            log_path = "./log/fw_ts64_0.8INT4_0.2INT3_bw_ts32_INT6"
-            if not os.path.exists(log_path):
-                os.makedirs(log_path)
-            with open(log_path + "/1_2.jsonl", "a") as f:
-                f.write(json.dumps({
-                    'loss': sum(tr_loss)/len(tr_loss),
-                    'lr': self.scheduler.get_last_lr()[0],
-                    'step': self.global_step,
-                }) + "\n")
 #             wandb.log(
 #                 {
 #                     'loss': sum(tr_loss)/len(tr_loss),
