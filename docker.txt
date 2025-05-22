@@ -1,0 +1,35 @@
+
+nvidia-docker run -it --shm-size=200g --gpus all -v /home/gxhe/workspace/cross-dc-train/TAH-Quant/:/workspace/TAH-Quant/ --name hgx-TAH-Quant nvcr.io/nvidia/cuda:11.0.3-cudnn8-devel-ubuntu20.04 /bin/bash
+
+apt update
+
+apt install python3.9 python3-pip
+
+python3.9 -m pip install numpy==1.23.5
+
+python3.9 -m pip install torch==2.1.0+cu118 torchtext==0.16.0 -f https://download.pytorch.org/whl/torch_stable.html
+
+
+# Magic, not sure why cupy-cuda111 would not work, it seems that cupy-cuda111 will use different PTX from torch.
+python3.9 -m pip install cupy-cuda110==8.6.0
+
+
+python3.9 -m pip install datasets==3.6.0 
+python3.9 -m pip install multiprocess==0.70.12.2
+
+python3.9 -m pip install transformers==4.19.2
+python3.9 -m pip install transformers==4.51.3
+
+
+python3.9 -m pip install scipy
+
+# python3.9 -m pip install sentencepiece==0.1.96 # required by deberta
+
+export GLOO_SOCKET_IFNAME=eth0
+export NCCL_SOCKET_IFNAME=eth0
+
+最后要检查一下是否支持h20显卡
+python3.9
+import torch
+torch.cuda.device_count()
+torch.cuda.is_available()
