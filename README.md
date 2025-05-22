@@ -1,52 +1,37 @@
-# Activation Compression with Guarantees
+# TAH-Quant
 
-We explore how to fine-tune language models over slow networks using activation compression with guarantees. 
-This is a research project developed by [DS3Lab@ETH Zurich](https://ds3lab.inf.ethz.ch/) and [HazyResearch@Stanford](https://hazyresearch.stanford.edu/).
-
-## Cite Our Paper
-
-```bibtex
-@article{jue2022fine,
-  title={Fine-tuning Language Models over Slow Networks using Activation Compression with Guarantees}, 
-  author={Jue Wang, Binhang Yuan, Luka Rimanic, Yongjun He, Tri Dao, Beidi Chen, Christopher Re, Ce Zhang},
-  year={2022},
-  eprint={2206.01299},
-  archivePrefix={arXiv},
-  primaryClass={cs.DC}
-}
-```
+We explored how to quantize the activation tensor between PP stages on the fly.
 
 ## Setup:
 
 - Create environment:
 
-  ```bash
-  conda create -n acsgd python=3.8
-  conda activate acsgd
-  ```
+  We use nvcr.io/nvidia/cuda:11.0.3-cudnn8-devel-ubuntu20.04 as the base env.
 
 - Install PyTorch env: 
 
   ```bash
-  pip3 install torch==1.9.0+cu111 torchtext -f https://download.pytorch.org/whl/torch_stable.html
+  apt install python3.9 python3-pip
 
-  # Magic, not sure why cupy-cuda111 would not work, it seems that cupy-cuda111 will use different PTX from torch.
-  pip3 install cupy-cuda110==8.6.0
-  ```
-  
-  Other dependencies:
- 
-  ```bash
-  pip3 install datasets==2.2.2
-  pip3 install transformers==4.19.2
-  pip3 install sentencepiece==0.1.96 # required by deberta
+  python3.9 -m pip install numpy==1.23.5
+
+  python3.9 -m pip install torch==2.1.0+cu118 torchtext==0.16.0 -f https://download.pytorch.org/whl/torch_stable.html
+
+  python3.9 -m pip install cupy-cuda110==8.6.0
+
+  python3.9 -m pip install datasets==3.6.0 
+  python3.9 -m pip install multiprocess==0.70.12.2
+
+  python3.9 -m pip install transformers==4.51.3
+
+  python3.9 -m pip install scipy
   ```
   
 - Setup network configuration:
 
   ```bash
-  export GLOO_SOCKET_IFNAME=ens3
-  export NCCL_SOCKET_IFNAME=ens3
+  export GLOO_SOCKET_IFNAME=eth0
+  export NCCL_SOCKET_IFNAME=eth0
   ```
 
 ## Run Distributed Gpipe:
@@ -55,40 +40,45 @@ This is a research project developed by [DS3Lab@ETH Zurich](https://ds3lab.inf.e
   
   ```bash
   # gpt2
-  python convert_gpt2_checkpoint --model-name gpt2-xl --save-dir checkpoints/
+  python3.9 convert_gpt2_checkpoint --model-name gpt2-xl --save-dir checkpoints/
       
-  # or deberta 
-  python convert_deberta_checkpoint --model-name deberta-v2-xxl --save-dir checkpoints/
+  # or qwen2
+  python3.9 convert_qwen2_checkpoint --model-name Qwen/Qwen2.5-3B --save-dir checkpoints/
   ```
 
 - On each node, run:
   
   ```bash
   # gpt2
-  python dist_lm_runner.py $(echo ${ARGS}) --cuda-id 0 --rank i # (i=0,...,N-1)
+  python3.9 dist_lm_runner.py $(echo ${ARGS}) --cuda-id 0 --rank i # (i=0,...,N-1)
       
   # or deberta
-  python dist_deberta_runner.py $(echo ${ARGS}) --cuda-id 0 --rank i # (i=0,...,N-1)
+  python3.9 dist_qwen_runner.py $(echo ${ARGS}) --cuda-id 0 --rank i # (i=0,...,N-1)
   ```
   where "ARGS" contains training-related configurations, which should remain the same across nodes. An example could be:
   ```bash
-  ARGS="--model-name checkpoints/gpt2-xl \
-    --tokenizer-name gpt2-xl \
-    --load-pretrained-model true \
-    --task-name wikitext --n-epochs 10 --warmup-epochs 1 \
-    --num-layers 6 --num-heads 25 --embedding-dim 1600 \
-    --num-iters 10000000 --lr 5e-5 --seq-length 1024 --batch-size 32 --micro-batch-size 1 \
-    --forward-compress-method delta \
-    --forward-bits 4 \
-    --backward-compress-method fixpoint \
-    --backward-bits 8 \
-    --dist-url tcp://XXX.XXX.XXX.XXX:9000 \
-    --world-size N --pipeline-group-size N \
-    --pp-mode gpipe --profiling no-profiling --do-evaluation true"
+  ARGS="--model-name gpt2-xl \
+  --tokenizer-name gpt2-xl \
+  --load-pretrained-model true \
+  --task-name wikitext --n-epochs 10 --warmup-epochs 0 \
+  --num-layers 6 --num-heads 25 --embedding-dim 1600 \
+  --num-iters 10000000 --lr 5e-6 --seq-length 1024 --batch-size 32 --micro-batch-size 1 \
+  --forward-compress-method tah \
+  --tile-size 64 \
+  --high-precision-bits 4 \
+  --low-precision-bits 3 \
+  --high-precision-allocation-ratio 0.8 \
+  --forward-bits 4 \
+  --backward-compress-method fixpoint \
+  --backward-tile-size 32 \
+  --backward-bits 6 \
+  --dist-url tcp://127.0.0.1:9033 \
+  --world-size 8 --pipeline-group-size 8 \
+  --pp-mode gpipe --profiling no-profiling --do-evaluation false"
   ```
   Modify `"--dist-url"`, `"--world-size"` and `"--pipeline-group-size"` before running.
   
-  Complete examples can be found "./run_lm.sh" and "./run_deberta.sh".
+  Complete examples can be found "./run_lm.sh" and "./run_lm_qwen.sh".
   
   
 ## Arguments
@@ -104,8 +94,9 @@ This is a research project developed by [DS3Lab@ETH Zurich](https://ds3lab.inf.e
 
 ### Compression Related
 
-- `"--forward-compress-method"`: "none", "fixpoint", "delta", or "delta-lowbits".
+- `"--forward-compress-method"`: "none", "tha", "fixpoint", "delta", or "delta-lowbits".
   - "none": do not compress.
+  - "tha": THA-Quant. need to specify "--tile-size", "--high-precision-bits", "--low-precision-bits", "--high-precision-allocation-ratio".
   - "fixpoint": direct compress the activations. need to specify `"--forward-bits".
   - "delta": compress and communicate the delta of activations. need to specify `"--forward-bits"` and `"--max-activation-cache-size"`.
   - "delta-lowbits": in addition to "delta", it also compresses the local cache (previous activations). need to specify `"--forward-bits"`, `"--forward-bits-act"`, and `"--max-activation-cache-size"`.
