@@ -1,7 +1,7 @@
 from .dummy_modules import NoCompression
 from .fixpoint_modules import FixpointCompressor, FixpointFlexibleCompressor
 from .delta_modules import DeltaCompressor, DeltaLowBitsCompressor
-from .tah_modules import TAHQuantCompressor, NaiveCompressor
+from .tah_modules import TAHQuantCompressor
 
 def get_compressor(*args, compress_method='none', **kargs):
     if compress_method == 'none':
@@ -14,7 +14,7 @@ def get_compressor(*args, compress_method='none', **kargs):
         return DeltaLowBitsCompressor(*args, **kargs)
     elif compress_method == 'tah':
         return TAHQuantCompressor(*args, **kargs)
-    elif compress_method == 'naive':
-        return NaiveCompressor(*args, **kargs)
+    # elif compress_method == 'naive':
+    #     return NaiveCompressor(*args, **kargs)
     else:
         raise Exception('unknown compression method')

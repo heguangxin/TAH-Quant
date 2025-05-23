@@ -41,9 +41,6 @@ We explored how to quantize the activation tensor between PP stages on the fly.
   ```bash
   # gpt2
   python3.9 convert_gpt2_checkpoint --model-name gpt2-xl --save-dir checkpoints/
-      
-  # or qwen2
-  python3.9 convert_qwen2_checkpoint --model-name Qwen/Qwen2.5-3B --save-dir checkpoints/
   ```
 
 - On each node, run:
@@ -51,9 +48,6 @@ We explored how to quantize the activation tensor between PP stages on the fly.
   ```bash
   # gpt2
   python3.9 dist_lm_runner.py $(echo ${ARGS}) --cuda-id 0 --rank i # (i=0,...,N-1)
-      
-  # or deberta
-  python3.9 dist_qwen_runner.py $(echo ${ARGS}) --cuda-id 0 --rank i # (i=0,...,N-1)
   ```
   where "ARGS" contains training-related configurations, which should remain the same across nodes. An example could be:
   ```bash
